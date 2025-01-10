@@ -78,8 +78,10 @@ def complete_asana_task(task_gid):
     
 def call_llm(client, user_message, conversation_history=None):
     today_date = datetime.date.today().strftime("%Y-%m-%d")
-    messages = [{"role": "system", "content": system_prompt.format(today_date=today_date)}]
-    messages.append({"role": "user", "content": user_message})
+    messages = [
+        {"role": "system", "content": system_prompt.format(today_date=today_date)},
+        {"role": "user", "content": user_message}
+    ]
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -87,8 +89,9 @@ def call_llm(client, user_message, conversation_history=None):
         temperature=0.2,
         max_tokens=200
     )
+
     llm_content = response.choices[0].message.content
-    print(f"Debug: Raw LLM Content: {llm_content}")
+    print(f"Debug: Raw LLM Content: {llm_content}")  # Keep this for debugging
     return llm_content
     
 def execute_turn(client, user_message):
@@ -210,26 +213,28 @@ def extract_task_id_from_message(message):
     return None
 
 def parse_llm_response(llm_output):
-    """Parse LLM response."""
+    """Parse LLM response and ensure it contains an 'action' key."""
     try:
-        print(f"Debug: Raw LLM Content: {llm_output}")  # Debug raw output
+        print(f"Debug: Raw LLM Content: {llm_output}")
 
-        # Strip the backticks and "json" tag
-        if llm_output.startswith("`json") and llm_output.endswith("`"):
-            llm_output = llm_output.strip("```").strip("json").strip()
-
-        print(f"Debug: Cleaned LLM Output: {llm_output}")  # Debug cleaned output
-
-        # Parse the cleaned JSON
+        # Attempt to parse the JSON directly
         parsed_response = json.loads(llm_output)
-        print(f"Debug: Parsed Response: {parsed_response}")  # Debug parsed JSON
-        return parsed_response
+
+        print(f"Debug: Parsed Response: {parsed_response}")
+
+        # Check if the parsed response is a dictionary and has the "action" key
+        if isinstance(parsed_response, dict) and "action" in parsed_response:
+            return parsed_response
+        else:
+            print(f"Error: Invalid LLM response format. 'action' key missing.")
+            return {"action": "NONE"}
+
     except json.JSONDecodeError as e:
-        print(f"Error: Failed to parse LLM response: {e}")
-        return {"action": "NONE"}  # Fallback
+        print(f"Error: Failed to parse LLM response as JSON: {e}")
+        return {"action": "NONE"}
     except Exception as e:
         print(f"Error: Unexpected issue in parse_llm_response: {e}")
-        return {"action": "NONE"}  # Fallback
+        return {"action": "NONE"}
 
 system_prompt = """
 You are a friendly AI Copilot that helps users interface with Asana -- namely creating new tasks, listing tasks, and marking tasks as complete.
