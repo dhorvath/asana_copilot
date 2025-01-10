@@ -88,6 +88,7 @@ def call_llm(client, user_message, conversation_history=None):
         max_tokens=200
     )
     llm_content = response.choices[0].message.content
+    print(f"Debug: Raw LLM Content: {llm_content}")
     return llm_content
     
 def execute_turn(client, user_message):
@@ -211,17 +212,24 @@ def extract_task_id_from_message(message):
 def parse_llm_response(llm_output):
     """Parse LLM response."""
     try:
+        print(f"Debug: Raw LLM Content: {llm_output}")  # Debug raw output
+
+        # Strip the backticks and "json" tag
         if llm_output.startswith("`json") and llm_output.endswith("`"):
             llm_output = llm_output.strip("```").strip("json").strip()
 
+        print(f"Debug: Cleaned LLM Output: {llm_output}")  # Debug cleaned output
+
+        # Parse the cleaned JSON
         parsed_response = json.loads(llm_output)
+        print(f"Debug: Parsed Response: {parsed_response}")  # Debug parsed JSON
         return parsed_response
     except json.JSONDecodeError as e:
         print(f"Error: Failed to parse LLM response: {e}")
-        return {"action": "NONE"}
+        return {"action": "NONE"}  # Fallback
     except Exception as e:
         print(f"Error: Unexpected issue in parse_llm_response: {e}")
-        return {"action": "NONE"}
+        return {"action": "NONE"}  # Fallback
 
 system_prompt = """
 You are a friendly AI Copilot that helps users interface with Asana -- namely creating new tasks, listing tasks, and marking tasks as complete.
