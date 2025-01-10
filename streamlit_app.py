@@ -48,11 +48,16 @@ def list_asana_tasks(only_open=True, asana_token=None):
     }
     url = f"{ASANA_BASE_URL}/projects/{DEFAULT_PROJECT_GID}/tasks"
     params = {
-        "opt_fields": "name,completed"
+        "opt_fields": "name,completed",
+        "limit": 100
     }
+    
     if only_open:
         params["completed_since"] = "now"
-
+    else:
+        # For all tasks, we want both completed and incomplete
+        params["completed_since"] = "2000-01-01"  # Use a date far in the past
+    
     resp = requests.get(url, headers=headers, params=params)
     if resp.status_code == 200:
         tasks = resp.json()["data"]
@@ -146,8 +151,8 @@ def get_formatted_prompt():
 # Show title and description
 st.title("🎯 Asana Copilot")
 st.write(
-    "This chatbot helps you manage Asana tasks. You can create tasks, list tasks, "
-    "and mark tasks as complete. You'll need both OpenAI and Asana API keys to proceed."
+    "The Asana Copilot helps you manage Asana tasks. You can create tasks, list tasks, "
+    "and mark tasks as complete. How can I help you today?"
 )
 
 # Get API keys
