@@ -222,16 +222,11 @@ def parse_llm_response(llm_output):
 
         print(f"Debug: Parsed Response: {parsed_response}")
 
-        # Check if the parsed response is a dictionary
-        if isinstance(parsed_response, dict):
-            # Check if the 'action' key is present
-            if "action" in parsed_response:
-                return parsed_response
-            else:
-                print(f"Error: 'action' key missing in LLM response.")
-                return {"action": "NONE"}  # Default action
+        # Check if the parsed response is a dictionary and has the "action" key
+        if isinstance(parsed_response, dict) and "action" in parsed_response:
+            return parsed_response
         else:
-            print(f"Error: LLM response is not a dictionary.")
+            print(f"Error: Invalid LLM response format. 'action' key missing.")
             return {"action": "NONE"}  # Default action
 
     except json.JSONDecodeError as e:
