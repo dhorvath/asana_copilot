@@ -103,18 +103,13 @@ def parse_llm_response(llm_output):
         return {"action": "NONE"}  # Fallback
 
 def extract_task_id_from_message(message):
-    """
-    Extract task ID (task_gid) from the user message.
-    Example input: "Can we close task 1234567890?"
-    Example output: "1234567890"
-    """
-    # Use a regular expression to find a numeric sequence in the message
+    """Extract task ID from the user message."""
     match = re.search(r'\b\d{10,}\b', message)  # Look for 10+ digit numbers
     if match:
-        return match.group(0)  # Return the first match
-    return None  # If no match found, return None
+        return match.group(0)
+    return None
 
-# Replace the placeholder system prompt with the actual one
+# System prompt
 system_prompt = """
 You are a friendly AI Copilot that helps users interface with Asana -- namely creating new tasks, listing tasks, and marking tasks as complete.
 You will interpret the user's request and respond with structured JSON.
@@ -139,40 +134,8 @@ Rules:
    Use 'position' if the user refers to a task by its position in the list (e.g., "third one").
 4. If no action is needed, respond with:
    { "action": "NONE" }
-
-Examples:
-- User: "Close task 1209105096577103"
-  Response: { "action": "COMPLETE_TASK", "task_gid": "1209105096577103" }
-
-- User: "Can you close rub jason's feet?"
-  Response: { "action": "COMPLETE_TASK", "name": "rub jason's feet" }
-
-- User: "List all my tasks"
-  Response: { "action": "LIST_TASKS" }
-
-- User: "Create a task called 'Finish report' due tomorrow"
-  Response: { "action": "CREATE_TASK", "name": "Finish report", "due": "2025-01-08" }
-
-- User: "Close the third one"
-  Response: { "action": "COMPLETE_TASK", "position": 3 }
-
-- User: "Complete task number 5"
-  Response: { "action": "COMPLETE_TASK", "position": 5 }
-
-Again, always respond in JSON format. Example:
-{
-  "action": "CREATE_TASK",
-  "name": "Submit Assignment",
-  "due": "2023-12-31"
-}
-
-If no action is required, respond with:
-{
-  "action": "NONE"
-}
 """
 
-# Add this right after the system prompt to format the date
 def get_formatted_prompt():
     """Format the system prompt with today's date."""
     today = datetime.datetime.now()
@@ -197,11 +160,13 @@ else:
     # Initialize OpenAI client
     client = OpenAI(api_key=openai_api_key)
 
-    # Initialize session state for messages and task list
+    # Initialize session state
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "last_task_list" not in st.session_state:
         st.session_state.last_task_list = []
+    if "waiting_for" not in st.session_state:
+        st.session_state.waiting_for = None
 
     # Display chat history
     for message in st.session_state.messages:
@@ -222,7 +187,6 @@ else:
               for m in st.session_state.messages]
         ]
 
-        # Add debug print to see what's being sent to the API
         print("Debug - Messages being sent to OpenAI:", messages)
 
         response = client.chat.completions.create(
@@ -232,7 +196,6 @@ else:
             max_tokens=200
         )
 
-        # Add debug printing to LLM response
         llm_content = response.choices[0].message.content
         print(f"Debug: Raw LLM Content: {llm_content}")
         parsed = parse_llm_response(llm_content)
@@ -242,16 +205,69 @@ else:
             if action == "CREATE_TASK":
                 name = parsed.get("name", "").strip()
                 due_date = parsed.get("due")
+                should_create_task = True  # Flag to control task creation
                 
-                result = create_asana_task(name, due_date, asana_api_key)
-                if "error" in result:
-                    response_text = f"Sorry, I had trouble creating the task: {result['error']}"
+                # If we're waiting for a task name from a previous interaction
+                if st.session_state.waiting_for == "task_name":
+                    name = prompt.strip()
+                    if not name:
+                        response_text = "Task name cannot be empty. Please try again."
+                        should_create_task = False
+                    else:
+                        st.session_state.task_name = name
+                        st.session_state.waiting_for = "due_date"
+                        response_text = ("Do you want to set a due date? Enter a date like 'tomorrow', "
+                                       "'next Friday', or '2025-01-15', or just press Enter to skip")
+                        should_create_task = False
+                    
+                # If we're waiting for a due date from a previous interaction
+                elif st.session_state.waiting_for == "due_date":
+                    name = st.session_state.task_name
+                    if prompt.strip():  # If user provided a date
+                        parsed_date = dateparser.parse(
+                            prompt,
+                            settings={
+                                "PREFER_DATES_FROM": "future",
+                                "RELATIVE_BASE": datetime.datetime.now()
+                            }
+                        )
+                        if parsed_date:
+                            due_date = parsed_date.strftime('%Y-%m-%d')
+                        else:
+                            st.error("I couldn't understand the due date. Skipping it.")
+                            due_date = None
+                    
+                    # Create the task
+                    result = create_asana_task(name, due_date, asana_api_key)
+                    if "error" in result:
+                        response_text = f"Sorry, I had trouble creating the task: {result['error']}"
+                    else:
+                        response_text = f"Created task '{result['name']}'"
+                        if due_date:
+                            response_text += f" due on {due_date}"
+                        response_text += "."
+                    
+                    # Clear the waiting state
+                    st.session_state.waiting_for = None
+                    st.session_state.pop('task_name', None)
+                    
+                # Initial task creation request
+                elif not name or name.lower() == "new task":
+                    response_text = "What would you like the name of the task to be?"
+                    st.session_state.waiting_for = "task_name"
+                    should_create_task = False
+                    
+                # If we have a name from the initial command
                 else:
-                    response_text = f"Created task '{result['name']}'"
-                    if due_date:
-                        response_text += f" due on {due_date}"
-                    response_text += "."
-                
+                    result = create_asana_task(name, due_date, asana_api_key)
+                    if "error" in result:
+                        response_text = f"Sorry, I had trouble creating the task: {result['error']}"
+                    else:
+                        response_text = f"Created task '{result['name']}'"
+                        if due_date:
+                            response_text += f" due on {due_date}"
+                        response_text += "."
+                    
                 st.write(response_text)
                 st.session_state.messages.append(
                     {"role": "assistant", "content": response_text})
