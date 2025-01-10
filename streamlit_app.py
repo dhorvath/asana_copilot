@@ -80,14 +80,11 @@ def call_llm(client, user_message, conversation_history=None):
     today_date = datetime.date.today().strftime("%Y-%m-%d")
     messages = [
         {"role": "system", "content": system_prompt.format(today_date=today_date)},
-        {"role": "user", "content": user_message}
+        {"role": "user", "content": user_message},
     ]
 
     response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=messages,
-        temperature=0.2,
-        max_tokens=200
+        model="gpt-4o", messages=messages, temperature=0.2, max_tokens=200
     )
 
     llm_content = response.choices[0].message.content
@@ -238,68 +235,57 @@ def parse_llm_response(llm_output):
 
 system_prompt = """
 You are a friendly AI Copilot that helps users interface with Asana -- namely creating new tasks, listing tasks, and marking tasks as complete.
-
 You will interpret the user's request and respond with structured JSON.
-
 Today's date is {today_date}.
 
-**IMPORTANT: ALWAYS RESPOND IN JSON FORMAT. Your response MUST contain an "action" key.**
+IMPORTANT: ALWAYS RESPOND IN JSON FORMAT. Your response MUST contain an "action" key.
 
 Rules:
 1. If the user asks to create a task, respond with:
-   { "action": "CREATE_TASK", "name": "<TASK NAME>", "due": "<YYYY-MM-DD>" }
-   If they gave a date in any format. For words like 'tomorrow', interpret it as {today_date} + 1 day, etc.
-   If no date is given or you cannot parse it, omit the 'due' field.
+    { "action": "CREATE_TASK", "name": "<TASK NAME>", "due": "<YYYY-MM-DD>" }
+   
+   - If they gave a date in any format, interpret it accordingly. For words like 'tomorrow', interpret it as {today_date} + 1 day, etc.
+   - If no date is given or you cannot parse it, omit the 'due' field.
+
 2. If the user asks to list tasks, respond with:
-   {"action": "LIST_TASKS", "filter": "open"}  # For "list my open tasks" or similar
-   {"action": "LIST_TASKS", "filter": "all"}  # For "list all my tasks" or similar
-   If the user specifies "open tasks" or similar, return only incomplete tasks. If the user specifies "all tasks," return all tasks (completed and incomplete).
-   If the intent is unclear, default to showing only open tasks.
-3. If the user asks to complete a task, respond with:
+   
+   {"action": "LIST_TASKS", "filter": "open"}  // For "list my open tasks" or similar
+   {"action": "LIST_TASKS", "filter": "all"}   // For "list all my tasks" or similar
+   
+   - If the user specifies "open tasks" or similar, return only incomplete tasks.
+   - If the user specifies "all tasks," return all tasks (completed and incomplete).
+   - If the intent is unclear, default to showing only open tasks.
+
+3. If the user asks to complete a task, respond with one of the following:
+   
    { "action": "COMPLETE_TASK", "task_gid": "<ID>" }
-   OR
    { "action": "COMPLETE_TASK", "name": "<TASK NAME>" }
-   OR
    { "action": "COMPLETE_TASK", "position": <NUMBER> }
-   Use 'position' if the user refers to a task by its position in the list (e.g., "third one").
+   
+   - Use 'position' if the user refers to a task by its position in the list (e.g., "third one").
+
 4. If no action is needed, respond with:
+   
    { "action": "NONE" }
 
 Examples:
 - User: "Close task 1209105096577103"
-  Response: { "action": "COMPLETE_TASK", "task_gid": "1209105096577103" }
+  Response: {"action": "COMPLETE_TASK", "task_gid": "1209105096577103"}
 
 - User: "Can you close rub jason's feet?"
-  Response: { "action": "COMPLETE_TASK", "name": "rub jason's feet" }
+  Response: {"action": "COMPLETE_TASK", "name": "rub jason's feet"}
 
 - User: "List all my tasks"
-  Response: { "action": "LIST_TASKS" }
+  Response: {"action": "LIST_TASKS", "filter": "all"}
 
 - User: "Create a task called 'Finish report' due tomorrow"
-  Response: { "action": "CREATE_TASK", "name": "Finish report", "due": "2025-01-08" }
+  Response: {"action": "CREATE_TASK", "name": "Finish report", "due": "2025-01-08"}
 
 - User: "Close the third one"
-  Response: { "action": "COMPLETE_TASK", "position": 3 }
+  Response: {"action": "COMPLETE_TASK", "position": 3}
 
 - User: "Complete task number 5"
-  Response: { "action": "COMPLETE_TASK", "position": 5 }
-
-- {"action": "LIST_TASKS", "filter": "open"}  # For "list my open tasks"
-- {"action": "LIST_TASKS", "filter": "all"}  # For "list all my tasks"
-- {"action": "CREATE_TASK", "name": "Task Name", "due": "2025-01-15"}
-- {"action": "COMPLETE_TASK", "task_gid": "1209105096577103"}
-
-Again, always respond in JSON format. Example:
-{
-  "action": "CREATE_TASK",
-  "name": "Submit Assignment",
-  "due": "2023-12-31"
-}
-
-If no action is required, respond with:
-{
-  "action": "NONE"
-}
+  Response: {"action": "COMPLETE_TASK", "position": 5}
 """
 
 # --- Streamlit UI ---
@@ -329,5 +315,6 @@ else:
 
         with st.chat_message("assistant"):
             response = execute_turn(client, prompt)
+            st.session_state.messages.append({"role": "assistant", "content": response})
             
         st.session_state.messages.append({"role": "assistant", "content": response})
