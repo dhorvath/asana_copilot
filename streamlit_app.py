@@ -205,7 +205,7 @@ else:
             if action == "CREATE_TASK":
                 name = parsed.get("name", "").strip()
                 due_date = parsed.get("due")
-                should_create_task = True  # Flag to control task creation
+                should_create_task = True
                 
                 # If we're waiting for a task name from a previous interaction
                 if st.session_state.waiting_for == "task_name":
@@ -257,16 +257,24 @@ else:
                     st.session_state.waiting_for = "task_name"
                     should_create_task = False
                     
-                # If we have a name from the initial command
+                # If we have a name from the initial command but no due date
                 else:
-                    result = create_asana_task(name, due_date, asana_api_key)
-                    if "error" in result:
-                        response_text = f"Sorry, I had trouble creating the task: {result['error']}"
+                    if not due_date:
+                        st.session_state.task_name = name
+                        st.session_state.waiting_for = "due_date"
+                        response_text = ("Do you want to set a due date? Enter a date like 'tomorrow', "
+                                       "'next Friday', or '2025-01-15', or just press Enter to skip")
+                        should_create_task = False
                     else:
-                        response_text = f"Created task '{result['name']}'"
-                        if due_date:
-                            response_text += f" due on {due_date}"
-                        response_text += "."
+                        # We have both name and due date, create the task
+                        result = create_asana_task(name, due_date, asana_api_key)
+                        if "error" in result:
+                            response_text = f"Sorry, I had trouble creating the task: {result['error']}"
+                        else:
+                            response_text = f"Created task '{result['name']}'"
+                            if due_date:
+                                response_text += f" due on {due_date}"
+                            response_text += "."
                     
                 st.write(response_text)
                 st.session_state.messages.append(
