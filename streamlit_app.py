@@ -213,7 +213,7 @@ def extract_task_id_from_message(message):
     return None
 
 def parse_llm_response(llm_output):
-    """Parse LLM response and ensure it contains an 'action' key."""
+    """Parse LLM response, ensure it's a dict with an 'action' key, and handle errors."""
     try:
         print(f"Debug: Raw LLM Content: {llm_output}")
 
@@ -222,12 +222,17 @@ def parse_llm_response(llm_output):
 
         print(f"Debug: Parsed Response: {parsed_response}")
 
-        # Check if the parsed response is a dictionary and has the "action" key
-        if isinstance(parsed_response, dict) and "action" in parsed_response:
-            return parsed_response
+        # Check if the parsed response is a dictionary
+        if isinstance(parsed_response, dict):
+            # Check if the 'action' key is present
+            if "action" in parsed_response:
+                return parsed_response
+            else:
+                print(f"Error: 'action' key missing in LLM response.")
+                return {"action": "NONE"}  # Default action
         else:
-            print(f"Error: Invalid LLM response format. 'action' key missing.")
-            return {"action": "NONE"}
+            print(f"Error: LLM response is not a dictionary.")
+            return {"action": "NONE"}  # Default action
 
     except json.JSONDecodeError as e:
         print(f"Error: Failed to parse LLM response as JSON: {e}")
@@ -238,8 +243,12 @@ def parse_llm_response(llm_output):
 
 system_prompt = """
 You are a friendly AI Copilot that helps users interface with Asana -- namely creating new tasks, listing tasks, and marking tasks as complete.
+
 You will interpret the user's request and respond with structured JSON.
+
 Today's date is {today_date}.
+
+**IMPORTANT: ALWAYS RESPOND IN JSON FORMAT. Your response MUST contain an "action" key.**
 
 Rules:
 1. If the user asks to create a task, respond with:
