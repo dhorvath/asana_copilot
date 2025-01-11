@@ -48,19 +48,22 @@ def list_asana_tasks(only_open=True, asana_token=None):
     }
     url = f"{ASANA_BASE_URL}/projects/{DEFAULT_PROJECT_GID}/tasks"
     params = {
-        "opt_fields": "name,completed",
+        "opt_fields": "name,completed,gid",
         "limit": 100
     }
     
     if only_open:
+        # For open tasks, use both parameters to ensure we only get incomplete tasks
+        params["completed"] = "false"
         params["completed_since"] = "now"
     else:
-        # For all tasks, we want both completed and incomplete
-        params["completed_since"] = "2000-01-01"  # Use a date far in the past
+        # For all tasks, use a date far in the past to get everything
+        params["completed_since"] = "2000-01-01"
     
     resp = requests.get(url, headers=headers, params=params)
     if resp.status_code == 200:
         tasks = resp.json()["data"]
+        # Double-check the completed status for open tasks
         if only_open:
             tasks = [task for task in tasks if not task.get("completed", False)]
         return tasks
