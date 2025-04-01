@@ -49,8 +49,5 @@ API keys are handled through Streamlit's interface and are not stored permanentl
 
 ## TESTING TESTING
 
-More testing for Workato!
+Testing for Workato!
 
-More testing for Workato! pt. II
-
-More testing for Workato! pt. III
